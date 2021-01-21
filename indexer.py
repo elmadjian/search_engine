@@ -6,6 +6,8 @@ nltk.download('rslp')
 import string
 from num2words import num2words
 import pandas as pd
+import unidecode
+import numpy as np
 
 
 class Indexer():
@@ -33,35 +35,81 @@ class Indexer():
         """
         dataset = pd.read_csv(dataset_path)
         self.documents = self._drop_fields(dataset)
-        self.index = {}
+        self.index = None
+        self.word_idx = None
+        self.doc_idx = None
+        self.inv_doc_freq = {}
+        self.term_freq = {}
         self.stop_words = self._generate_stop_words()
         self.stemmer = RSLPStemmer()
-        self.create_inverted_index()
+        self.create_index()
 
 
-    def create_inverted_index(self):
+    def create_index(self):
         """
         Creates a simple index from stemmed words in 
         the corpus. 
         """
         for doc in self.documents:
-            self._index_document(doc, 'title')
-            self._index_document(doc, 'concatenated_tags')
+            text = self._preprocess_doc(doc['title'])
+            text += self._preprocess_doc(doc['concatenated_tags'])
+            self.term_freq[doc['product_id']] = self._count_frequency(text)
+        n_doc = len(self.documents)
+        for word in self.inv_doc_freq.keys():
+            n_word = self.inv_doc_freq[word]
+            self.inv_doc_freq[word] = np.log(n_doc/n_word)
+        self.word_idx = {w:i for i,w in enumerate(self.inv_doc_freq.keys())}
+        self.doc_idx  = {d:i for i,d in enumerate(self.term_freq.keys())}
+        self.index = self._create_tfidf_index()            
 
 
-    def _index_document(self, doc, category):
+    def _preprocess_doc(self, doc):
         """
-        Add a single document to the index
+        Tokenize, lowercase, number to words, stemming, stop word removal
         """
-        text = doc[category].lower()
+        text = doc.lower()
+        text = unidecode.unidecode(text)
         text = nltk.word_tokenize(text, language='portuguese')
         text = self._number_to_word(text)
         text = [self.stemmer.stem(w) for w in text if\
                 (w not in self.stop_words) and (len(w) > 1)]
+        return text
+
+
+    def _count_frequency(self, text):
+        """
+        Calculates and return the term frequency (TF) of a given document.
+        It also updates global document frequency
+        """
+        n_words = len(text)
+        words_doc = {w:0 for w in set(text)}
         for word in text:
-            if word not in self.index.keys():
-                self.index[word] = set()
-            self.index[word].add(doc['product_id'])
+            words_doc[word] += 1
+        for word in words_doc.keys():
+            words_doc[word] /= n_words
+            if word not in self.inv_doc_freq.keys():
+                self.inv_doc_freq[word] = 0
+            self.inv_doc_freq[word] += 1
+        return words_doc
+
+
+    def _create_tfidf_index(self):
+        """
+        Creates a sparse matrix where rows are indexed by documents
+        and columns are the vocabulary. The matrix stores the
+        tf*idf values found while building the index.
+        """
+        rows = len(self.term_freq.keys())
+        cols = len(self.inv_doc_freq.keys())
+        matrix = np.zeros((rows, cols))
+        for i, doc in enumerate(self.term_freq.keys()):
+            for j, word in enumerate(self.inv_doc_freq.keys()):
+                if word in self.term_freq[doc].keys():
+                    tf = self.term_freq[doc][word]
+                    idf = self.inv_doc_freq[word]
+                    matrix[i,j] = tf*idf
+        return matrix
+
 
         
     def _number_to_word(self, tokens):
