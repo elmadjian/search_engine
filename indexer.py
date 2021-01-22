@@ -35,38 +35,45 @@ class Indexer():
         """
         dataset = pd.read_csv(dataset_path)
         self.documents = self._drop_fields(dataset)
-        self.index = None
+        self.inverted_index = {}
+        self.tfidf_index = None
         self.word_idx = None
         self.doc_idx = None
         self.inv_doc_freq = {}
         self.term_freq = {}
         self.stop_words = self._generate_stop_words()
         self.stemmer = RSLPStemmer()
-        self.create_index()
+        self.create_indexes()
 
 
-    def create_index(self):
+    def create_indexes(self):
         """
-        Creates a simple index from stemmed words in 
-        the corpus. 
+        Creates an inverted index for fast document retrieval
+        and a TF-IDF matrix of the form N x (V+F) for ranking, where:
+        N is the number of documents and
+        V is the vocabulary extracted from the corpus.
+        F is the set of non-textual added features
         """
         for doc in self.documents:
             text = self._preprocess_doc(doc['title'])
             text += self._preprocess_doc(doc['concatenated_tags'])
-            self.term_freq[doc['product_id']] = self._count_frequency(text)
+            tf = self._count_frequency(text, doc['product_id'])
+            self.term_freq[doc['product_id']] = tf
         n_doc = len(self.documents)
         for word in self.inv_doc_freq.keys():
             n_word = self.inv_doc_freq[word]
             self.inv_doc_freq[word] = np.log(n_doc/n_word)
         self.word_idx = {w:i for i,w in enumerate(self.inv_doc_freq.keys())}
         self.doc_idx  = {d:i for i,d in enumerate(self.term_freq.keys())}
-        self.index = self._create_tfidf_index()            
+        self.tfidf_index = self._create_tfidf_index()          
 
 
     def _preprocess_doc(self, doc):
         """
         Tokenize, lowercase, number to words, stemming, stop word removal
         """
+        if not type(doc) == str:
+            return []
         text = doc.lower()
         text = unidecode.unidecode(text)
         text = nltk.word_tokenize(text, language='portuguese')
@@ -76,16 +83,19 @@ class Indexer():
         return text
 
 
-    def _count_frequency(self, text):
+    def _count_frequency(self, text, doc_id):
         """
         Calculates and return the term frequency (TF) of a given document.
         It also updates global document frequency
         """
         n_words = len(text)
         words_doc = {w:0 for w in set(text)}
-        for word in text:
+        for word in text: #building inv index and TF
             words_doc[word] += 1
-        for word in words_doc.keys():
+            if word not in self.inverted_index.keys():
+                self.inverted_index[word] = []
+            self.inverted_index[word].append(doc_id)
+        for word in words_doc.keys(): #normalizing TF, counting DF
             words_doc[word] /= n_words
             if word not in self.inv_doc_freq.keys():
                 self.inv_doc_freq[word] = 0
@@ -110,7 +120,6 @@ class Indexer():
                     matrix[i,j] = tf*idf
         return matrix
 
-
         
     def _number_to_word(self, tokens):
         """
@@ -129,6 +138,9 @@ class Indexer():
 
     
     def _generate_stop_words(self):
+        """
+        Creates a list of stop words in Portuguese
+        """
         punctuation = string.punctuation
         punctuation += "+-/'\\"
         stop_words  = nltk.corpus.stopwords.words('portuguese')
@@ -144,11 +156,8 @@ class Indexer():
         dataset = dataset.drop(fields, axis=1)
         return dataset.to_dict(orient='records')
 
-
-    def store_index(self):
-        pass
-        
+       
 
 
 if __name__=="__main__":
-    indexer = Indexer("elo7_recruitment_dataset_100.csv")
+    indexer = Indexer("elo7_recruitment_dataset.csv")
