@@ -14,9 +14,13 @@ class Searcher():
 
     def search(self, query, prods_to_show=10, **kwargs):
         """
+        Returns a list of ranked product ids from a
+        query. The size of this list is limited by 'prods_to_show'.
+        It is also possible to specify query parameters
+        (see _filter_by_params())
         """
         query = self.index.preprocess(query)
-        query_vec = self._query_vector(query)
+        query_vec = self._gen_query_vector(query)
         products = self.index.get_document_ids(query)
         similarities = self._cosine_similarity_docs(query_vec,products)
         ranking = dict(sorted(similarities.items(), 
@@ -27,7 +31,7 @@ class Searcher():
         return ranking[:prods_to_show]
 
 
-    def _query_vector(self, query):
+    def _gen_query_vector(self, query):
         """
         Given a preprocessed query, it returns a
         transformed tf*idf associated vector
@@ -43,6 +47,8 @@ class Searcher():
             if word in self.index.inv_doc_freq.keys():
                 idf = self.index.inv_doc_freq[word]
             query_vec[self.word_idx[word]] *= idf
+        n_feat = self.index.get_number_features()
+        query_vec = np.hstack((query_vec, np.ones(n_feat,)))
         return query_vec    
 
 

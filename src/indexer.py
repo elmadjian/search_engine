@@ -36,6 +36,8 @@ class Indexer():
         """
         dataset = pd.read_csv(dataset_path)
         documents = self._drop_fields(dataset)
+        self.features = ['view_counts', 'order_counts']
+        max_features = self._calculate_max_features(dataset)
         self.inverted_index = {}
         self.tfidf_index = None
         self.word_idx = None
@@ -45,10 +47,10 @@ class Indexer():
         self.documents = {}
         self.stop_words = self._generate_stop_words()
         self.stemmer = RSLPStemmer()
-        self.create_indexes(documents)
+        self.create_indexes(documents, max_features)
 
 
-    def create_indexes(self, documents):
+    def create_indexes(self, documents, max_features):
         """
         Creates an inverted index for fast document retrieval
         and a TF-IDF matrix of the form N x (V+F) for ranking, where:
@@ -57,12 +59,17 @@ class Indexer():
         F is the set of non-textual added features
         """
         print(">>> Processing documents and creating inverted index...")
+        features = {doc['product_id']: [] for doc in documents}
         for doc in documents:
             text = self.preprocess(doc['title'])
             text += self.preprocess(doc['concatenated_tags'])
             tf = self._count_frequency(text, doc['product_id'])
             self.term_freq[doc['product_id']] = tf
             self.documents[doc['product_id']] = doc
+            for feat in max_features.keys():
+                if np.isnan(doc[feat]):
+                    doc[feat] = 0
+                features[doc['product_id']].append(1+doc[feat]/max_features[feat])
         print(">>> Creating sparse TF-IDF matrix...")
         n_doc = len(documents)
         for word in self.inv_doc_freq.keys():
@@ -70,7 +77,7 @@ class Indexer():
             self.inv_doc_freq[word] = 1+np.log(n_doc/n_word)
         self.word_idx = {w:i for i,w in enumerate(self.inv_doc_freq.keys())}
         self.doc_idx  = {d:i for i,d in enumerate(self.term_freq.keys())}
-        self.tfidf_index = self._create_tfidf_index()     
+        self.tfidf_index = self._create_tfidf_index(features)     
 
 
     def get_document_ids(self, words):
@@ -101,9 +108,17 @@ class Indexer():
         return self.tfidf_index[row]
 
 
+    def get_number_features(self):
+        """
+        Returns the number of selected features for the model
+        """
+        return len(self.features)
+
+
     def preprocess(self, doc):
         """
-        Tokenize, lowercase, number to words, stemming, stop word removal
+        Performs a series of NLP errands:
+        Tokenization, converting number to words, stemming, stop word removal
         """
         if not type(doc) == str:
             return []
@@ -136,7 +151,7 @@ class Indexer():
         return words_doc
 
 
-    def _create_tfidf_index(self):
+    def _create_tfidf_index(self, features):
         """
         Creates a sparse matrix where rows are indexed by documents
         and columns are the vocabulary. The matrix stores the
@@ -145,12 +160,17 @@ class Indexer():
         rows = len(self.term_freq.keys())
         cols = len(self.inv_doc_freq.keys())
         matrix = np.zeros((rows, cols))
+        n_feat = len(features[next(iter(features))])
+        feat_mat = np.zeros((rows, n_feat))
         for i, doc in enumerate(self.term_freq.keys()):
             for j, word in enumerate(self.inv_doc_freq.keys()):
                 if word in self.term_freq[doc].keys():
                     tf = self.term_freq[doc][word]
                     idf = self.inv_doc_freq[word]
                     matrix[i,j] = tf*idf
+            for k in range(n_feat):
+                feat_mat[i,k] = features[doc][k]
+        matrix = np.hstack((matrix, feat_mat))
         return matrix
 
         
@@ -188,6 +208,16 @@ class Indexer():
         fields = ['query', 'search_page', 'position']
         dataset = dataset.drop(fields, axis=1)
         return dataset.to_dict(orient='records')
+
+
+    def _calculate_max_features(self, dataset):
+        features = {f:0 for f in self.features}
+        for feature in features:
+            features[feature] = dataset[feature].max()
+        return features
+
+
+
 
        
 
