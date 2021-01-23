@@ -1,3 +1,4 @@
+import os
 import nltk
 from nltk.stem import RSLPStemmer
 nltk.download('punkt')
@@ -34,19 +35,20 @@ class Indexer():
         - category          [doc]
         """
         dataset = pd.read_csv(dataset_path)
-        self.documents = self._drop_fields(dataset)
+        documents = self._drop_fields(dataset)
         self.inverted_index = {}
         self.tfidf_index = None
         self.word_idx = None
         self.doc_idx = None
         self.inv_doc_freq = {}
         self.term_freq = {}
+        self.documents = {}
         self.stop_words = self._generate_stop_words()
         self.stemmer = RSLPStemmer()
-        self.create_indexes()
+        self.create_indexes(documents)
 
 
-    def create_indexes(self):
+    def create_indexes(self, documents):
         """
         Creates an inverted index for fast document retrieval
         and a TF-IDF matrix of the form N x (V+F) for ranking, where:
@@ -54,21 +56,52 @@ class Indexer():
         V is the vocabulary extracted from the corpus.
         F is the set of non-textual added features
         """
-        for doc in self.documents:
-            text = self._preprocess_doc(doc['title'])
-            text += self._preprocess_doc(doc['concatenated_tags'])
+        print(">>> Processing documents and creating inverted index...")
+        for doc in documents:
+            text = self.preprocess(doc['title'])
+            text += self.preprocess(doc['concatenated_tags'])
             tf = self._count_frequency(text, doc['product_id'])
             self.term_freq[doc['product_id']] = tf
-        n_doc = len(self.documents)
+            self.documents[doc['product_id']] = doc
+        print(">>> Creating sparse TF-IDF matrix...")
+        n_doc = len(documents)
         for word in self.inv_doc_freq.keys():
             n_word = self.inv_doc_freq[word]
-            self.inv_doc_freq[word] = np.log(n_doc/n_word)
+            self.inv_doc_freq[word] = 1+np.log(n_doc/n_word)
         self.word_idx = {w:i for i,w in enumerate(self.inv_doc_freq.keys())}
         self.doc_idx  = {d:i for i,d in enumerate(self.term_freq.keys())}
-        self.tfidf_index = self._create_tfidf_index()          
+        self.tfidf_index = self._create_tfidf_index()     
 
 
-    def _preprocess_doc(self, doc):
+    def get_document_ids(self, words):
+        """
+        Given a list of words, return a list of product ids
+        in which at least the occurance of one of the words
+        is observed.
+        """ 
+        products = []    
+        for word in words:
+            products += self.inverted_index[word]
+        return products
+
+
+    def get_documents(self, prod_ids):
+        """
+        Returns the list of products of the dataset
+        indexed by 'product_id'
+        """
+        return self.documents
+
+
+    def get_vector_doc(self, product_id):
+        """
+        Returns the tf*idf vector associated to a product
+        """
+        row = self.doc_idx[product_id]
+        return self.tfidf_index[row]
+
+
+    def preprocess(self, doc):
         """
         Tokenize, lowercase, number to words, stemming, stop word removal
         """
@@ -160,4 +193,5 @@ class Indexer():
 
 
 if __name__=="__main__":
-    indexer = Indexer("elo7_recruitment_dataset.csv")
+    datapath = os.path.abspath("../data/elo7_recruitment_dataset_100.csv")
+    indexer = Indexer(datapath)
