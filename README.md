@@ -1,36 +1,37 @@
-# search_engine
+# Search Engine
+
+Este é um motor de busca algorítmico, que basicamente utiliza TF-IDF para
+ranquear os resultados. Os dados são indexados tanto em um índice invertido 
+do tipo **word** -> **list of documents** -- para acesso rápido dos
+produtos com termos pertinentes -- quanto em uma matriz esparsa do tipo 
+**document** X **vocabulary**, a qual é utilizada no processo de
+ranqueamento via similaridade de cossenos. A representação vetorial dos
+dados TF-IDF também é combinada com valores normalizados
+de outras *features*, tais como "view_counts", "order_counts", etc.
+
 
 ### Instalação
 
-Recomendamos que a instalação seja feita automaticamente via ``docker-compose`` para
-que não haja problemas com dependências e compatibilidade com a versão do Python:
-```
-docker-compose up --build
-```
-
-Caso não queira/possa usar o ``docker``, lembre-se de que é preciso instalar primeiro
-as dependências antes de executar o programa principal. Recomendamos que isso seja
-feito em um [ambiente virtual](https://docs.python.org/3/library/venv.html) e que
-a versão do seu Python seja pelo menos 3.7+. Depois que seu ambiente estiver
-configurado, basta executar:
+Recomendamos que a instalação seja feita usando um ambiente virtual Python.
+Você pode ver a instruções para configurar e ativar esse ambiente [aqui](https://docs.python.org/3/library/venv.html).
+Também recomendamos que a versão do seu Python seja pelo menos 3.7+. 
+Depois que seu ambiente estiver configurado, basta executar:
 ```
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-
 #### Testes
 
-Para rodar testes unitários específicos de um módulo, execute **um** dos seguintes comandos:
+A cobertura dos testes ainda é baixa. Ainda assim, você pode rodar testes unitários de um módulo específico executando **um** dos seguintes comandos:
 ```
 python -m unittest tests/test_indexer.py
 python -m unittest tests/test_searcher.py
-python -m unittest tests/test_evaluator.py
 ```
 
 Para executar todos os testes de uma só vez:
 ```
-python -m unittest discover
+python -m unittest discover tests
 ```
 
 ### Execução
