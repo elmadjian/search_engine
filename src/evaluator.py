@@ -53,7 +53,7 @@ class Evaluator():
                    end='\r', flush=True)
 
 
-    def _eval_query(self, product, limit=1000):
+    def _eval_query(self, product, limit=190):
         """
         Returns the error from the difference between
         expected and predicted positions of a product

@@ -71,7 +71,7 @@ class Indexer():
             tf = self._count_frequency(text, doc['product_id'])
             self.term_freq[doc['product_id']] = tf
             self.documents[doc['product_id']] = doc
-            for feat in max_features.keys():
+            for feat in self.features:
                 if np.isnan(doc[feat]):
                     doc[feat] = 0
                 features[doc['product_id']].append(1+doc[feat]/max_features[feat])
