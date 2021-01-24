@@ -40,7 +40,7 @@ Foi criada uma simples CLI (simples mesmo) para interação com a *engine*. Voc�
 acessar essa interface a partir do script ``main.py``:
 ```
 python main.py
-``` 
+```
 Ao executá-lo, o motor de busca irá lhe perguntar se você deseja carregar o dataset
 padrão ou outro de sua escolha. Pressione enter para selecionar a opção padrão.
 
@@ -55,7 +55,7 @@ Depois disso, você poderá escolher se deseja fazer *queries* livremente na
 comportamento do motor. Para isso entre com uma das opções:
 ```
 search engine
-``` 
+```
 para fazer suas buscas ou, para fazer a avaliação:
 ```
 evaluator
@@ -78,7 +78,7 @@ informação está armazenada em uma estrutura do módulo ``indexer``.
 
 A avaliação foi feita utilizando duas condições -- com e sem *features* não textuais -- e
 sob dois cenários distintos: limitando o número de produtos retornados a 190 (número máximo
-na escala transformada da posição do item) e outro a 1000. Para cada configuração, foram
+na escala transformada da posição do item (conf. **Limitações importantes**)) e outro a 1000. Para cada configuração, foram
 feitas 1000 requisições aleatórias à *engine* extraídas do dataset fornecido.
 Para cada requisição, armazenamos a diferença entre a posição esperada do produto no
 ranqueamento para a posição em que de fato a *engine* o devolveu.
@@ -104,22 +104,21 @@ como o algoritmo está efetivamente se comportando. Por isso, adicionamos os his
 abaixo para entendermos qual a distribuição desses erros.
 
 Como podemos observar, o erro médio foi fortemente impactado por uma porcentagem significativa
-de produtos que ou não foram encontrados ou não estavam dentro do limite de items retornados.
+de produtos que ou não foram encontrados ou não estavam dentro do limite de items retornados (o que devolve erro máximo).
 De todo modo, rodando um *one-way ANOVA*, não houve diferença estatisticamente significativa 
 entre nenhuma condição, seja no caso de 1000 itens retornados (F=0.3014, p=0.583), 
 seja no de 190 (F=0.1501, p=0.698). Já os histogramas indicam que ambas as versões do algoritmo 
 concentram seus erros mais próximos de 0 (o que é o desejável): 
 
-|              | 1000 itens | 190 itens  |   
+|              | 1000 itens | 190 itens  |
 |--------------|------------|------------|
 | apenas texto |<img src="data/no_features_lim1000.png"   />|<img src="data/no_features_lim190.png"  />|
 | com features |<img src="data/with_features_lim1000.png" />|<img src="data/with_features_lim190.png"/>|
 
-Ainda assim, a indexação TF-IDF com busca via similaridade por cossenos não parece ser 
-a mais adequada para o tipo de comportamento esperado pelo dataset. Como o volume de texto 
+Ainda assim, a indexação TF-IDF com busca via similaridade por cossenos não parece ser a solução mais adequada para o tipo de comportamento esperado pelo dataset. Como o volume de texto 
 por produto é relativamente baixo e bastante variável, a frequência de um termo talvez não
-tenha tanto peso e um dos fenômenos observados é que itens com descrições muito curta 
-podem ser mais penalizados se a requisição conter muitos termos. 
+tenha tanto peso. Outro fenômeno observado é que itens com descrições muito curtas 
+podem ser mais penalizados se a *query* contiver muitos termos. 
 
 
 ### Limitações importantes
@@ -127,10 +126,10 @@ podem ser mais penalizados se a requisição conter muitos termos.
 Há diversas simplificações no modelo. Para começar, não foi empregada lematização em português,
 apenas stemming, o que provavelmente introduz erros de representatividade do índice, já que
 podemos armazenar prefixos aparentemente distintos que pertencem à mesma raiz
-(e.g. "abriu" -> "abr", "aberto" -> "abert").
+(e.g. "abriu" -> "abr", "aberto" -> "abert"). Além disso, sabemos que certos termos sempre costumam andar junto com outros, por isso indexar por bigramas ou trigramas, em geral, provê melhores resultados – a um custo muito maior de memória.
 
 Como cardinalidade é importante para métricas na avaliação do modelo, simplificamos o domínio-alvo
 aglutinando os campos "search_page" e "position" em uma única dimensão de espaço discreto = [1, 190].
 Porém é importante ressaltar que muitas vezes é possível que um item no topo na segunda página
-do resultado de busca tenha mais visibilidade que outro no fundo da primeira página.
+do resultado de busca tenha mais visibilidade que outro no fundo da primeira página, por exemplo.
 Esta simplificação, portanto, não comporta essa possibilidade.
