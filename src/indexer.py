@@ -47,7 +47,12 @@ class Indexer():
         self.documents = {}
         self.stop_words = self._generate_stop_words()
         self.stemmer = RSLPStemmer()
-        self.create_indexes(documents, max_features)
+        if os.path.exists(dataset_path[:-4]+'_processed.npz'):
+            print('>>> Preprocessed index found. Loading...')
+            self._load_indexes(dataset_path)
+        else:
+            self.create_indexes(documents, max_features)
+            self._store_indexes(dataset_path)
 
 
     def create_indexes(self, documents, max_features):
@@ -88,7 +93,8 @@ class Indexer():
         """ 
         products = []    
         for word in words:
-            products += self.inverted_index[word]
+            if word in self.inverted_index.keys():
+                products += self.inverted_index[word]
         return products
 
 
@@ -160,7 +166,7 @@ class Indexer():
         rows = len(self.term_freq.keys())
         cols = len(self.inv_doc_freq.keys())
         matrix = np.zeros((rows, cols))
-        n_feat = len(features[next(iter(features))])
+        n_feat = len(self.features)
         feat_mat = np.zeros((rows, n_feat))
         for i, doc in enumerate(self.term_freq.keys()):
             for j, word in enumerate(self.inv_doc_freq.keys()):
@@ -217,9 +223,30 @@ class Indexer():
         return features
 
 
+    def _store_indexes(self, datapath):
+        index_path = datapath[:-4]+'_processed.npz'
+        print('>>> Saving processed indexes for fast loading...')
+        np.savez(index_path, 
+                 inverted_index=self.inverted_index,
+                 tfidf_index=self.tfidf_index,
+                 word_idx=self.word_idx,
+                 doc_idx=self.doc_idx,
+                 inv_doc_freq=self.inv_doc_freq,
+                 term_freq=self.term_freq,
+                 documents=self.documents)
 
 
-       
+    def _load_indexes(self, datapath):
+        index_path = datapath[:-4]+'_processed.npz'
+        indexes = np.load(index_path, allow_pickle=True)
+        self.inverted_index = indexes['inverted_index'].item()
+        self.tfidf_index = indexes['tfidf_index']
+        self.word_idx = indexes['word_idx'].item()
+        self.doc_idx = indexes['doc_idx'].item()
+        self.inv_doc_freq = indexes['inv_doc_freq'].item()
+        self.term_freq = indexes['term_freq'].item()
+        self.documents = indexes['documents'].item()
+
 
 
 if __name__=="__main__":

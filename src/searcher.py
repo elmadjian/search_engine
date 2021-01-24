@@ -1,5 +1,5 @@
 import os
-import indexer as idx
+import src.indexer as idx
 import numpy as np
 
 
@@ -16,7 +16,7 @@ class Searcher():
         """
         Returns a list of ranked product ids from a
         query. The size of this list is limited by 'prods_to_show'.
-        It is also possible to specify query parameters
+        It is also possible to specify other query parameters
         (see _filter_by_params())
         """
         query = self.index.preprocess(query)
@@ -28,7 +28,7 @@ class Searcher():
         ranking = list(ranking.keys())
         if kwargs:
             ranking = self._filter_by_params(ranking, kwargs)
-        return ranking[:prods_to_show]
+        return ranking[:int(prods_to_show)]
 
 
     def _gen_query_vector(self, query):
@@ -43,10 +43,9 @@ class Searcher():
                 query_vec[self.word_idx[word]] += 1
         query_vec = query_vec/np.sum(query_vec)
         for word in query:
-            idf = 1
             if word in self.index.inv_doc_freq.keys():
                 idf = self.index.inv_doc_freq[word]
-            query_vec[self.word_idx[word]] *= idf
+                query_vec[self.word_idx[word]] *= idf
         n_feat = self.index.get_number_features()
         query_vec = np.hstack((query_vec, np.ones(n_feat,)))
         return query_vec    
@@ -72,6 +71,7 @@ class Searcher():
         """
         Filter the ranked output of a search by selected parameters.
         Valid parameters:
+        - prods_to_show (int)
         - seller_id (int)
         - title (str)
         - price_min (float)
@@ -84,7 +84,9 @@ class Searcher():
         """
         products = self.index.get_documents(ranking)
         for param in query_params.keys():
-            if param == 'seller_id':
+            if param == 'prods_to_show':
+                ranking = ranking[:int(query_params['prods_to_show'])]
+            elif param == 'seller_id':
                 ranking = [i for i in ranking if products[i]['seller_id']\
                            == query_params['seller_id']]
             elif param == 'title':
@@ -92,21 +94,21 @@ class Searcher():
                            == query_params['title']]
             elif param == 'price_min':
                 ranking = [i for i in ranking if products[i]['price']\
-                           >= query_params['price_min']]
+                           >= float(query_params['price_min'])]
             elif param == 'price_max':
                 ranking = [i for i in ranking if products[i]['price']\
-                           <= query_params['price_max']]
+                           <= float(query_params['price_max'])]
             elif param == 'weight_min':
                 ranking = [i for i in ranking if products[i]['weight']\
-                           >= query_params['weight_min']]
+                           >= float(query_params['weight_min'])]
             elif param == 'weight_max':
                 ranking = [i for i in ranking if products[i]['weight']\
-                           <= query_params['weight_max']]
+                           <= float(query_params['weight_max'])]
             elif param == 'express_delivery':
                 ranking = [i for i in ranking if products[i]['express_delivery']]
             elif param == 'min_quantity':
-                ranking = [i for i in ranking if products[i]['min_quantity']\
-                           >= query_params['min_quantity']]
+                ranking = [i for i in ranking if products[i]['minimum_quantity']\
+                           >= float(query_params['min_quantity'])]
             elif param == 'category':
                 ranking = [i for i in ranking if products[i]['category']\
                            == query_params['category']]
@@ -116,8 +118,8 @@ class Searcher():
 
 
 if __name__=="__main__":
-    datapath = os.path.abspath("../data/elo7_recruitment_dataset_100.csv")
+    datapath = os.path.abspath("../data/elo7_recruitment_dataset.csv")
     indexer =  idx.Indexer(datapath)
     searcher = Searcher(indexer)
-    print(searcher.search("mandala croche", category="Decoração"))
+    print(searcher.search("mandala croche", price_max=5, category="Decoração"))
     print(searcher.search("lembrancinha", category="Decoração"))
